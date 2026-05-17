@@ -308,6 +308,8 @@ async def _supabase_admin_create_and_sign_in(email: str, password: str) -> tuple
             detail=detail,
             email=email,
         )
+        if resp.status_code in {400, 409, 422} and "already" in detail.lower():
+            return await _sign_in_existing_supabase_user(email, password)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GENERIC_REGISTRATION_ERROR,
@@ -324,6 +326,28 @@ async def _supabase_admin_create_and_sign_in(email: str, password: str) -> tuple
 
     log.info("Supabase admin signup succeeded", user_id=user_id)
     return user, access_token
+
+
+async def _sign_in_existing_supabase_user(email: str, password: str) -> tuple[dict, str]:
+    """Recover when Supabase has the user but our Author row is missing.
+
+    This can happen during deployment/debugging if a Supabase user is created
+    and a later DB insert fails. If the supplied password is valid, we link the
+    existing Supabase user by returning it to the normal register flow. If not,
+    we give the user a clear conflict instead of a generic signup failure.
+    """
+    try:
+        access_token, user_id = await _supabase_sign_in(email, password)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists. Please sign in instead.",
+            ) from exc
+        raise
+
+    log.info("Linked existing Supabase user during registration", user_id=user_id, email=email)
+    return {"id": user_id}, access_token
 
 
 async def _supabase_sign_in(email: str, password: str) -> tuple[str, str]:
