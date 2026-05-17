@@ -6,7 +6,7 @@ services:
     env: python
     plan: free
     buildCommand: cd backend && pip install uv && uv sync --all-extras --frozen
-    startCommand: cd backend && uv run alembic upgrade head && uv run celery -A app.tasks.celery_app worker --loglevel=info --concurrency=1 & uv run celery -A app.tasks.celery_app beat --loglevel=info & uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    startCommand: ./render-start.sh
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
