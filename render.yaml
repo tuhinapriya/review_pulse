@@ -1,0 +1,66 @@
+services:
+  # Backend web service (FastAPI)
+  - type: web
+    name: review-pulse-api
+    env: python
+    buildCommand: cd backend && pip install uv && uv sync
+    startCommand: cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: review-pulse-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: review-pulse-redis
+          property: connectionString
+      - fromGroup: review-pulse-secrets
+
+  # Celery worker
+  - type: worker
+    name: review-pulse-worker
+    env: python
+    buildCommand: cd backend && pip install uv && uv sync
+    startCommand: cd backend && celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: review-pulse-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: review-pulse-redis
+          property: connectionString
+      - fromGroup: review-pulse-secrets
+
+  # Celery beat scheduler (hourly re-ingest)
+  - type: worker
+    name: review-pulse-beat
+    env: python
+    buildCommand: cd backend && pip install uv && uv sync
+    startCommand: cd backend && celery -A app.tasks.celery_app beat --loglevel=info
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: review-pulse-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: review-pulse-redis
+          property: connectionString
+      - fromGroup: review-pulse-secrets
+
+  # Redis (Celery broker + result backend)
+  - type: redis
+    name: review-pulse-redis
+    plan: free
+    ipAllowList: []  # internal only
+
+databases:
+  - name: review-pulse-db
+    plan: free
+    databaseName: reviewpulse
+    user: reviewpulse

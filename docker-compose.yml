@@ -1,0 +1,31 @@
+services:
+  postgres:
+    # pgvector/pgvector ships with the vector extension pre-installed,
+    # saving us from having to compile it manually.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: reviewpulse
+      POSTGRES_USER: reviewpulse
+      POSTGRES_PASSWORD: reviewpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reviewpulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

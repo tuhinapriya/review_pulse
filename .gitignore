@@ -1,0 +1,36 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+backend/.venv/
+.venv/
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+
+# Logs and local runtime output
+.logs/
+*.log
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Assignment planning/source docs kept out of the submission commit
+plan/
+
+# Accidental root npm artifact; the real frontend lockfile is frontend/package-lock.json
+/package-lock.json
