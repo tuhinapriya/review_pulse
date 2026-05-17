@@ -1,10 +1,13 @@
 services:
-  # Backend web service (FastAPI)
+  # Free-demo topology: run FastAPI, Celery worker, and Celery beat in one
+  # Render web service. For production, split worker/beat into separate services.
   - type: web
     name: review-pulse-api
     env: python
-    buildCommand: cd backend && pip install uv && uv sync
-    startCommand: cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2
+    plan: free
+    buildCommand: cd backend && pip install uv && uv sync --all-extras --frozen
+    startCommand: cd backend && uv run alembic upgrade head && uv run celery -A app.tasks.celery_app worker --loglevel=info --concurrency=1 & uv run celery -A app.tasks.celery_app beat --loglevel=info & uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -17,49 +20,15 @@ services:
           property: connectionString
       - fromGroup: review-pulse-secrets
 
-  # Celery worker
-  - type: worker
-    name: review-pulse-worker
-    env: python
-    buildCommand: cd backend && pip install uv && uv sync
-    startCommand: cd backend && celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: review-pulse-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: review-pulse-redis
-          property: connectionString
-      - fromGroup: review-pulse-secrets
-
-  # Celery beat scheduler (hourly re-ingest)
-  - type: worker
-    name: review-pulse-beat
-    env: python
-    buildCommand: cd backend && pip install uv && uv sync
-    startCommand: cd backend && celery -A app.tasks.celery_app beat --loglevel=info
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: review-pulse-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: review-pulse-redis
-          property: connectionString
-      - fromGroup: review-pulse-secrets
-
-  # Redis (Celery broker + result backend)
+  # Redis-compatible broker/result backend for Celery.
   - type: redis
     name: review-pulse-redis
     plan: free
-    ipAllowList: []  # internal only
+    ipAllowList: []
 
 databases:
+  # Free Render Postgres is fine for a review/demo link, but expires after
+  # 30 days. Use Supabase/Neon/paid Postgres for anything longer-lived.
   - name: review-pulse-db
     plan: free
     databaseName: reviewpulse
